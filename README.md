@@ -27,7 +27,7 @@ See [docs/local-issues.md](docs/local-issues.md) for the full analysis.
 - OpenShift cluster (4.17+) with namespace-scoped access
 - `oc` CLI authenticated (`oc login`)
 - A model serving endpoint (vLLM, KServe, or external API)
-- Block storage class (gp3-csi, managed-csi) — avoid NFS
+- Block storage class (gp3-csi, managed-csi, thin-csi) — avoid NFS (SQLite requires POSIX file locking)
 
 ## Quick Start
 
@@ -44,18 +44,31 @@ npm install && npm run build && npm run dev
 
 See [docs/installer-deployment.md](docs/installer-deployment.md) for the full walkthrough.
 
-### Option B: Manual YAML manifests
+### Option B: Kustomize
 
 ```bash
-oc new-project <your-namespace>
+oc new-project my-openclaw
+
+# Copy and customize the example overlay
+cp -r overlays/example overlays/my-env
+# Edit overlays/my-env/configmap-patch.yaml with your vLLM endpoint
+# Edit overlays/my-env/kustomization.yaml with your namespace and storage class
+
+oc apply -k overlays/my-env
+```
+
+See [overlays/example/](overlays/example/) for a complete customization example.
+
+### Option C: Direct YAML apply
+
+```bash
+oc new-project my-openclaw
 
 # Edit manifests/02-configmap.yaml with your model endpoint
 # Edit manifests/01-secret.yaml with your gateway token
 
-oc apply -f manifests/
+oc apply -k manifests/
 ```
-
-See [manifests/](manifests/) for all resource definitions.
 
 ## Architecture
 
@@ -76,7 +89,7 @@ See [manifests/](manifests/) for all resource definitions.
               |  +---------------+  +------+------+  |
               |                            |          |
               |                     +------+------+   |
-              |                     | PVC (10Gi)  |   |
+              |                     | PVC (5Gi)   |   |
               |                     +-------------+   |
               +--------------------------------------+
                          |
@@ -87,34 +100,58 @@ See [manifests/](manifests/) for all resource definitions.
               +---------------------------+
 ```
 
+## Customization
+
+The manifests use [Kustomize](https://kustomize.io/) for environment-specific configuration. The base manifests are in `manifests/`, and you create overlays to customize for your cluster.
+
+**Common customizations:**
+
+| What | Where |
+|------|-------|
+| Model endpoint URL | `overlays/<env>/configmap-patch.yaml` |
+| Storage class | `overlays/<env>/kustomization.yaml` (patch) |
+| Namespace | `overlays/<env>/kustomization.yaml` (`namespace:` field) |
+| Gateway token | `manifests/01-secret.yaml` (or use sealed-secrets / external-secrets) |
+| Resource limits | Patch `manifests/04-deployment.yaml` |
+
 ## Resources Created
 
 | Resource | Name | Purpose |
 |----------|------|---------|
-| ServiceAccount | `openclaw-oauth-proxy` | OAuth redirect for SSO |
 | Secret | `openclaw-secrets` | Gateway token + API keys |
 | ConfigMap | `openclaw-config` | Gateway configuration |
 | PVC | `openclaw-state` | Persistent agent state (SQLite, memory, logs) |
-| Service | `openclaw` | ClusterIP: gateway (18789) + oauth-ui (8443) |
-| Route | `openclaw` | TLS edge termination targeting oauth-proxy |
-| Deployment | `openclaw` | Init container + oauth-proxy + gateway |
+| Service | `openclaw` | ClusterIP on port 18789 |
+| Route | `openclaw` | TLS edge termination |
+| Deployment | `openclaw` | Init container + gateway (add oauth-proxy via installer) |
+
+> **Note:** The manual manifests provide a basic deployment. For OAuth proxy, ServiceAccount-based SSO, and lifecycle management, use the [openclaw-installer](https://github.com/aakankshaduggal/openclaw-installer).
 
 ## Security
 
 - **restricted-v2 SCC** — non-root, random UID, no capabilities, no privilege escalation
-- **OAuth proxy** — OpenShift SSO gates all access, no raw token exposure
+- **OAuth proxy** (via installer) — OpenShift SSO gates all access, no raw token exposure
 - **Secrets via SecretRef** — API keys never in ConfigMap or images
 - **Loopback gateway** — only reachable via oauth-proxy sidecar
 - **Tool deny list** — web and browser tools blocked by default
+- **Recreate strategy** — avoids concurrent writer conflicts on SQLite-backed PVC
 
 ## Docs
 
-- [docs/local-issues.md](docs/local-issues.md) — Why local deployment fails and how OpenShift solves it
-- [docs/installer-deployment.md](docs/installer-deployment.md) — Step-by-step deployment with openclaw-installer
-- [docs/troubleshooting.md](docs/troubleshooting.md) — Common issues and fixes
-- [docs/model-compatibility.md](docs/model-compatibility.md) — Model testing results for tool-calling
+| Document | Description |
+|----------|-------------|
+| [docs/local-issues.md](docs/local-issues.md) | Why local deployment fails and how OpenShift solves it |
+| [docs/installer-deployment.md](docs/installer-deployment.md) | Step-by-step deployment with openclaw-installer |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Common issues and fixes (route 503, model override, device pairing) |
+| [docs/model-compatibility.md](docs/model-compatibility.md) | Model testing results for agentic tool-calling |
 
-## Related
+## Related Projects
 
 - [openclaw-installer](https://github.com/aakankshaduggal/openclaw-installer) — Web-based deployment tool with OpenShift plugin
 - [OpenClaw](https://github.com/openclaw/openclaw) — Upstream project
+- [openclaw-operator](https://github.com/openclaw-rocks/k8s-operator) — Kubernetes operator with lifecycle management
+- [openclaw-helm](https://github.com/serhanekicii/openclaw-helm) — Community Helm chart
+
+## License
+
+[MIT](LICENSE)
