@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openclaw
+spec:
+  template:
+    spec:
+      containers:
+        # Patch the gateway container to add Codex env vars
+        - name: gateway
+          env:
+            - name: OPENCLAW_GATEWAY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: openclaw-secrets
+                  key: OPENCLAW_GATEWAY_TOKEN
+            - name: OPENCLAW_HOME
+              value: /data/.openclaw
+            - name: CODEX_APP_SERVER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: codex-secrets
+                  key: CODEX_APP_SERVER_TOKEN
+        # Add Codex app-server as a sidecar
+        - name: codex-app-server
+          image: ghcr.io/openai/codex-app-server:latest
+          args:
+            - "app-server"
+            - "--listen"
+            - "ws://0.0.0.0:39175"
+          ports:
+            - containerPort: 39175
+              protocol: TCP
+          env:
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: codex-secrets
+                  key: OPENAI_API_KEY
+            - name: CODEX_APP_SERVER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: codex-secrets
+                  key: CODEX_APP_SERVER_TOKEN
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 250m
+            limits:
+              memory: 1Gi
+              cpu: "1"
+          readinessProbe:
+            tcpSocket:
+              port: 39175
+            initialDelaySeconds: 5
+            periodSeconds: 10

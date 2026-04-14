@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openclaw-config
+data:
+  openclaw.json: |
+    {
+      "gateway": {
+        "port": 18789,
+        "bind": "0.0.0.0",
+        "mode": "local",
+        "auth": {
+          "mode": "token"
+        }
+      },
+      "channels": {},
+      "agents": {
+        "defaults": {
+          "heartbeat": {},
+          "model": "codex/gpt-5.4",
+          "embeddedHarness": {
+            "runtime": "codex",
+            "fallback": "none"
+          },
+          "sandbox": {
+            "mode": "off"
+          }
+        }
+      },
+      "plugins": {
+        "entries": {
+          "codex": {
+            "enabled": true,
+            "config": {
+              "appServer": {
+                "transport": "websocket",
+                "url": "ws://localhost:39175",
+                "authToken": "${CODEX_APP_SERVER_TOKEN}",
+                "requestTimeoutMs": 60000,
+                "approvalPolicy": "never",
+                "sandbox": "workspace-write"
+              }
+            }
+          }
+        }
+      },
+      "tools": {
+        "deny": [
+          "group:web",
+          "browser"
+        ]
+      }
+    }

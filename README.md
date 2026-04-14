@@ -113,6 +113,7 @@ The manifests use [Kustomize](https://kustomize.io/) for environment-specific co
 | Namespace | `overlays/<env>/kustomization.yaml` (`namespace:` field) |
 | Gateway token | `manifests/01-secret.yaml` (or use sealed-secrets / external-secrets) |
 | Resource limits | Patch `manifests/04-deployment.yaml` |
+| Codex Harness | `overlays/codex-harness/` (adds Codex app-server sidecar) |
 
 ## Resources Created
 
@@ -144,6 +145,7 @@ The manifests use [Kustomize](https://kustomize.io/) for environment-specific co
 | [docs/installer-deployment.md](docs/installer-deployment.md) | Step-by-step deployment with openclaw-installer |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Common issues and fixes (route 503, model override, device pairing) |
 | [docs/model-compatibility.md](docs/model-compatibility.md) | Model testing results for agentic tool-calling |
+| [docs/codex-harness.md](docs/codex-harness.md) | Codex Harness plugin — sidecar deployment, mixed models, guardian approvals |
 
 ## Related Projects
 
