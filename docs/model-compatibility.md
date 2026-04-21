@@ -39,5 +39,22 @@ Mixed deployments can use `runtime: "auto"` to let OpenClaw select the harness b
 
 - **On OpenShift (self-hosted):** Use gpt-oss-20b or larger via vLLM with tool-calling flags enabled
 - **On OpenShift (Codex):** Use `codex/gpt-5.4` with the Codex Harness sidecar for thread management and guardian approvals
+- **On OpenShift (Google):** Use `google/gemini-2.5-pro` via Google AI Studio with `GEMINI_API_KEY` (Vertex AI SA auth is not yet supported natively — see [vertex-ai-provider.md](vertex-ai-provider.md#known-limitation-vertex-ai-auth))
 - **Local testing:** Use qwen2.5:7b via Ollama with a 32k context window
 - **Always verify:** Test tool-calling with a known-answer query (e.g., "list files on my Desktop") before trusting agent output
+
+## Valid API Types
+
+When configuring `models.providers.*.api` in the ConfigMap, use one of:
+
+| API Type | Use Case |
+|----------|----------|
+| `openai-completions` | vLLM, LM Studio, any OpenAI-compatible endpoint |
+| `openai-responses` | Direct OpenAI API |
+| `openai-codex-responses` | Codex app-server |
+| `anthropic-messages` | Anthropic API or Anthropic on Vertex AI |
+| `google-generative-ai` | Google Gemini (AI Studio or Vertex AI) |
+| `ollama` | Local Ollama instance |
+| `azure-openai-responses` | Azure OpenAI |
+| `bedrock-converse-stream` | AWS Bedrock |
+| `github-copilot` | GitHub Copilot |

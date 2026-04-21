@@ -40,12 +40,18 @@ The Codex harness is useful when you want:
 - Model discovery through Codex's catalog
 - Mixed deployments where some agents use Codex and others use vLLM
 
+## Important: Sidecar Image Availability
+
+> **Status (2026-04-21):** The Codex app-server container image (`ghcr.io/openai/codex-app-server:latest`) is **not publicly accessible** — pulling it returns `403 Forbidden`. Until OpenAI publishes this image, the sidecar deployment described below will not work.
+>
+> **Workaround:** Use the direct OpenAI API instead of the Codex harness. Set the model to `openai/gpt-5.4` with `api: "openai-responses"` in your provider config, and provide your `OPENAI_API_KEY` via a Secret. This gives you GPT-5.x access without the sidecar, though you lose Codex-specific features (thread management, guardian approvals).
+
 ## Deploy on OpenShift
 
 ### Prerequisites
 
 - OpenAI API key with Codex access
-- Codex app-server image (`ghcr.io/openai/codex-app-server:latest`, version 0.118.0+)
+- Codex app-server image (`ghcr.io/openai/codex-app-server:latest`, version 0.118.0+) — see [availability note](#important-sidecar-image-availability) above
 
 ### Using the Kustomize overlay
 
@@ -167,7 +173,7 @@ oc logs deployment/openclaw -c codex-app-server -n <namespace>
 
 Common issues:
 - Missing `OPENAI_API_KEY` — check the `codex-secrets` secret
-- Image pull failure — verify `ghcr.io/openai/codex-app-server:latest` is accessible
+- Image pull failure — `ghcr.io/openai/codex-app-server:latest` is [not publicly available](#important-sidecar-image-availability) (returns 403). Use the direct OpenAI API fallback instead.
 
 ### Gateway can't connect to Codex
 

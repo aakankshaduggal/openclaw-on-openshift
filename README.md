@@ -1,5 +1,7 @@
 # OpenClaw on OpenShift
 
+> Tested: 2026-04-13 on OpenShift 4.19 (ROSA) with vLLM model serving
+
 Deploy [OpenClaw](https://github.com/openclaw/openclaw) on Red Hat OpenShift with vLLM model serving, OAuth SSO, and production-grade security — no cluster-admin required.
 
 ## Why OpenShift?
@@ -28,6 +30,14 @@ See [docs/local-issues.md](docs/local-issues.md) for the full analysis.
 - `oc` CLI authenticated (`oc login`)
 - A model serving endpoint (vLLM, KServe, or external API)
 - Block storage class (gp3-csi, managed-csi, thin-csi) — avoid NFS (SQLite requires POSIX file locking)
+
+### Verify Prerequisites
+
+```bash
+oc version          # 4.17+ client
+oc whoami           # authenticated user
+oc get storageclass # block storage available
+```
 
 ## Quick Start
 
@@ -128,6 +138,45 @@ The manifests use [Kustomize](https://kustomize.io/) for environment-specific co
 
 > **Note:** The manual manifests provide a basic deployment. For OAuth proxy, ServiceAccount-based SSO, and lifecycle management, use the [openclaw-installer](https://github.com/aakankshaduggal/openclaw-installer).
 
+## Validation
+
+After deployment, verify these checks pass:
+
+```bash
+# 1. Pod running with all containers ready
+oc get pods -n <namespace>
+# Expected: 2/2 Running (oauth-proxy + gateway)
+
+# 2. Route accessible (403 = OAuth gate working)
+curl -s -o /dev/null -w "%{http_code}" -k https://$(oc get route openclaw -n <namespace> -o jsonpath='{.spec.host}')
+# Expected: 403
+
+# 3. Correct model loaded
+oc logs deployment/openclaw -c gateway -n <namespace> | grep "agent model"
+# Expected: agent model: openai-compat/gpt-oss-20b
+
+# 4. Heartbeat disabled (unless intentionally enabled)
+oc logs deployment/openclaw -c gateway -n <namespace> | grep heartbeat
+# Expected: [heartbeat] disabled
+```
+
+See [docs/installer-deployment.md](docs/installer-deployment.md#validation) for the full validation checklist.
+
+## Rollback
+
+```bash
+# Partial — stop without deleting data
+oc scale deployment/openclaw --replicas=0 -n <namespace>
+
+# Partial — roll back to previous config
+oc rollout undo deployment/openclaw -n <namespace>
+
+# Full — remove everything (destructive)
+oc delete project <namespace>
+```
+
+See [docs/installer-deployment.md](docs/installer-deployment.md#rollback-instructions) for detailed rollback procedures.
+
 ## Security
 
 - **restricted-v2 SCC** — non-root, random UID, no capabilities, no privilege escalation
@@ -137,15 +186,26 @@ The manifests use [Kustomize](https://kustomize.io/) for environment-specific co
 - **Tool deny list** — web and browser tools blocked by default
 - **Recreate strategy** — avoids concurrent writer conflicts on SQLite-backed PVC
 
+## Known Limitations
+
+| Limitation | Impact |
+|------------|--------|
+| Single replica only | SQLite does not support concurrent writers; Recreate strategy required |
+| NFS incompatible | SQLite requires POSIX file locking; use block storage only |
+| Config auto-override | Gateway may overwrite ConfigMap settings on first start; verify model in logs |
+| Heartbeat on by default | Fires every 30 min; set `heartbeat.every: "0m"` to disable |
+| Device pairing required | Each new browser needs one-time CLI approval |
+
 ## Docs
 
 | Document | Description |
 |----------|-------------|
 | [docs/local-issues.md](docs/local-issues.md) | Why local deployment fails and how OpenShift solves it |
-| [docs/installer-deployment.md](docs/installer-deployment.md) | Step-by-step deployment with openclaw-installer |
-| [docs/troubleshooting.md](docs/troubleshooting.md) | Common issues and fixes (route 503, model override, device pairing) |
+| [docs/installer-deployment.md](docs/installer-deployment.md) | Step-by-step deployment with openclaw-installer (validation, rollback, appendix) |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Common issues and fixes (route 503, model override, heartbeat, config clobber) |
 | [docs/model-compatibility.md](docs/model-compatibility.md) | Model testing results for agentic tool-calling |
 | [docs/codex-harness.md](docs/codex-harness.md) | Codex Harness plugin — sidecar deployment, mixed models, guardian approvals |
+| [docs/vertex-ai-provider.md](docs/vertex-ai-provider.md) | Vertex AI (Gemini) — no GPU needed, 1M context, GCP SA auth |
 
 ## Related Projects
 
